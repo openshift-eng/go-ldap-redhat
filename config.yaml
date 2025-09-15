@@ -1,0 +1,26 @@
+environments:
+  local:
+    ldap_servers:
+      - "ldap://apps-ldap.corp.redhat.com:389"
+    username: "uid=pco-deleted-users-query,ou=users,dc=redhat,dc=com"
+    base_dn: "dc=redhat,dc=com"
+    use_start_tls: true
+    verify_ssl: false
+    # password loaded from secrets or env var
+    
+  dev:
+    ldap_servers:
+      - "ldap://dev-ldap.corp.redhat.com:389"
+    username: "uid=dev-service,ou=users,dc=redhat,dc=com"
+    base_dn: "dc=redhat,dc=com"
+    use_start_tls: true
+    verify_ssl: false
+    
+  prod:
+    ldap_servers:
+      - "ldaps://ldap.corp.redhat.com:636"
+      - "ldaps://ldap2.corp.redhat.com:636"  # failover
+    username: "uid=prod-service,ou=users,dc=redhat,dc=com"
+    base_dn: "dc=redhat,dc=com"
+    use_start_tls: false  # using ldaps
+    verify_ssl: true      # verify certs in prod
