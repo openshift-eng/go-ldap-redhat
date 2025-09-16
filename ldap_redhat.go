@@ -13,7 +13,7 @@ import (
 )
 
 // Version of the go-ldap-redhat library
-const Version = "v1.0.0"
+const Version = "v1.1.0"
 
 // Config holds LDAP connection configuration
 type Config struct {
@@ -32,11 +32,12 @@ type YAMLConfig struct {
 }
 
 type EnvConfig struct {
-	LdapServers []string `yaml:"ldap_servers"`
-	Username    string   `yaml:"username"`
-	BaseDN      string   `yaml:"base_dn"`
-	UseStartTLS bool     `yaml:"use_start_tls"`
-	VerifySSL   bool     `yaml:"verify_ssl"`
+	LdapServers  []string `yaml:"ldap_servers"`
+	Username     string   `yaml:"username"`
+	BaseDN       string   `yaml:"base_dn"`
+	UseStartTLS  bool     `yaml:"use_start_tls"`
+	VerifySSL    bool     `yaml:"verify_ssl"`
+	PasswordFile string   `yaml:"password_file"`
 }
 
 // DefaultConfig holds the auto-loaded configuration
@@ -84,7 +85,7 @@ func NewSearcherFromEnv() (*Searcher, error) {
 	config := Config{
 		LdapServers: []string{os.Getenv("LDAP_URL")},
 		Username:    os.Getenv("LDAP_BIND_DN"),
-		Password:    os.Getenv("LDAP_PASSWORD"),
+		Password:    getPasswordFromEnv(),
 		BaseDN:      os.Getenv("LDAP_BASE_DN"),
 		UseStartTLS: os.Getenv("LDAP_STARTTLS") == "true",
 		VerifySSL:   os.Getenv("LDAP_VERIFY_SSL") != "false",
@@ -233,13 +234,28 @@ func tryLoadYAMLFile(configPath, env string) *Config {
 		return nil
 	}
 
-	return &Config{
+	config := &Config{
 		LdapServers: envConfig.LdapServers,
 		Username:    envConfig.Username,
 		BaseDN:      envConfig.BaseDN,
 		UseStartTLS: envConfig.UseStartTLS,
 		VerifySSL:   envConfig.VerifySSL,
 	}
+
+	// Load password from YAML-specified file if configured
+	if envConfig.PasswordFile != "" {
+		// Expand ~ to home directory
+		passwordPath := envConfig.PasswordFile
+		if strings.HasPrefix(passwordPath, "~/") {
+			homeDir, _ := os.UserHomeDir()
+			passwordPath = filepath.Join(homeDir, passwordPath[2:])
+		}
+		if password := readSecretFile(passwordPath); password != "" {
+			config.Password = password
+		}
+	}
+
+	return config
 }
 
 // getEnvironment returns the current environment (local, dev, prod)
@@ -259,8 +275,13 @@ func mergeWithSecretsAndEnv(config Config) Config {
 	homeDir, _ := os.UserHomeDir()
 	secretsDir := filepath.Join(homeDir, ".secrets", "ldap")
 
+	// Password loading priority: secrets folder -> LDAP_PASSWORD_FILE -> LDAP_PASSWORD
 	if password := readSecretFile(filepath.Join(secretsDir, "password")); password != "" {
 		config.Password = password
+	} else if passwordFile := os.Getenv("LDAP_PASSWORD_FILE"); passwordFile != "" {
+		if password := readSecretFile(passwordFile); password != "" {
+			config.Password = password
+		}
 	} else if password := os.Getenv("LDAP_PASSWORD"); password != "" {
 		config.Password = password
 	}
@@ -333,4 +354,16 @@ func NewSearcherWithDefaults() (*Searcher, error) {
 		return nil, fmt.Errorf("no LDAP_URL found in environment variables")
 	}
 	return NewSearcher(DefaultConfig)
+}
+
+// getPasswordFromEnv loads password from LDAP_PASSWORD_FILE or LDAP_PASSWORD
+func getPasswordFromEnv() string {
+	// Try LDAP_PASSWORD_FILE first
+	if passwordFile := os.Getenv("LDAP_PASSWORD_FILE"); passwordFile != "" {
+		if password := readSecretFile(passwordFile); password != "" {
+			return password
+		}
+	}
+	// Fallback to direct LDAP_PASSWORD
+	return os.Getenv("LDAP_PASSWORD")
 }

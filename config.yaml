@@ -6,7 +6,7 @@ environments:
     base_dn: "dc=redhat,dc=com"
     use_start_tls: true
     verify_ssl: false
-    # password loaded from secrets or env var
+    password_file: "~/.secrets/ldap/password"  # Default password file location
     
   dev:
     ldap_servers:
@@ -15,6 +15,7 @@ environments:
     base_dn: "dc=redhat,dc=com"
     use_start_tls: true
     verify_ssl: false
+    password_file: "~/.secrets/ldap/dev-password"
     
   prod:
     ldap_servers:
@@ -24,3 +25,4 @@ environments:
     base_dn: "dc=redhat,dc=com"
     use_start_tls: false  # using ldaps
     verify_ssl: true      # verify certs in prod
+    password_file: "/run/secrets/ldap/prod_password"  # Production secret mount
