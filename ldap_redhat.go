@@ -105,11 +105,9 @@ func NewSearcher(config Config) (*Searcher, error) {
 		return nil, fmt.Errorf("failed to connect to LDAP server %s: %w", ldapURL, err)
 	}
 	if config.UseStartTLS {
-		// Extract hostname from LDAP URL for TLS verification
-		serverName := extractHostname(ldapURL)
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: !config.VerifySSL,
-			ServerName:         serverName,
+			ServerName:         extractHostname(ldapURL),
 		}
 		err = conn.StartTLS(tlsConfig)
 		if err != nil {
@@ -182,17 +180,56 @@ func (s *Searcher) GetUser(ctx context.Context, id Identifier) (UserRecord, erro
 	return user, nil
 }
 
-// loadConfigFromAll loads configuration from YAML, secrets, then env vars
+// loadConfigFromAll loads configuration: YAML → env vars → defaults
 func loadConfigFromAll() Config {
 	config := Config{}
 
-	// 1. Try YAML config first
+	// 1. Start with YAML config
 	if yamlConfig := loadYAMLConfig(); yamlConfig != nil {
 		config = *yamlConfig
 	}
 
-	// 2. Override with secrets and env vars
-	config = mergeWithSecretsAndEnv(config)
+	// 2. Fill empty fields from environment variables
+	if len(config.LdapServers) == 0 {
+		if url := os.Getenv("LDAP_URL"); url != "" {
+			config.LdapServers = []string{url}
+		}
+	}
+
+	if config.Username == "" {
+		if bindDN := os.Getenv("LDAP_BIND_DN"); bindDN != "" {
+			config.Username = bindDN
+		}
+	}
+
+	if config.BaseDN == "" {
+		if baseDN := os.Getenv("LDAP_BASE_DN"); baseDN != "" {
+			config.BaseDN = baseDN
+		}
+	}
+
+	// Password: YAML password_file → LDAP_PASSWORD_FILE → LDAP_PASSWORD → error
+	if config.Password == "" {
+		if passwordFile := os.Getenv("LDAP_PASSWORD_FILE"); passwordFile != "" {
+			if password := readSecretFile(passwordFile); password != "" {
+				config.Password = password
+			}
+		}
+		if config.Password == "" {
+			if password := os.Getenv("LDAP_PASSWORD"); password != "" {
+				config.Password = password
+			}
+		}
+	}
+
+	// 3. Set defaults for boolean flags if not set in YAML
+	if os.Getenv("LDAP_START_TLS") != "" {
+		config.UseStartTLS = os.Getenv("LDAP_START_TLS") == "true"
+	}
+
+	if os.Getenv("LDAP_VERIFY_SSL") != "" {
+		config.VerifySSL = os.Getenv("LDAP_VERIFY_SSL") == "true"
+	}
 
 	return config
 }
@@ -269,80 +306,13 @@ func getEnvironment() string {
 	return "local" // default
 }
 
-// mergeWithSecretsAndEnv merges YAML config with secrets and environment variables
-func mergeWithSecretsAndEnv(config Config) Config {
-	// Load password from secrets folder first, then env vars
-	homeDir, _ := os.UserHomeDir()
-	secretsDir := filepath.Join(homeDir, ".secrets", "ldap")
-
-	// Password loading priority: secrets folder -> LDAP_PASSWORD_FILE -> LDAP_PASSWORD
-	if password := readSecretFile(filepath.Join(secretsDir, "password")); password != "" {
-		config.Password = password
-	} else if passwordFile := os.Getenv("LDAP_PASSWORD_FILE"); passwordFile != "" {
-		if password := readSecretFile(passwordFile); password != "" {
-			config.Password = password
-		}
-	} else if password := os.Getenv("LDAP_PASSWORD"); password != "" {
-		config.Password = password
-	}
-
-	// Override with env vars if present
-	if url := os.Getenv("LDAP_URL"); url != "" {
-		config.LdapServers = []string{url}
-	}
-
-	if bindDN := os.Getenv("LDAP_BIND_DN"); bindDN != "" {
-		config.Username = bindDN
-	}
-
-	if baseDN := os.Getenv("LDAP_BASE_DN"); baseDN != "" {
-		config.BaseDN = baseDN
-	}
-
-	if os.Getenv("LDAP_START_TLS") != "" {
-		config.UseStartTLS = os.Getenv("LDAP_START_TLS") == "true"
-	}
-
-	if os.Getenv("LDAP_VERIFY_SSL") != "" {
-		config.VerifySSL = os.Getenv("LDAP_VERIFY_SSL") == "true"
-	}
-
-	return config
-}
-
 // readSecretFile safely reads a secret file and returns its contents
 func readSecretFile(path string) string {
-	// Check file permissions for security
-	info, err := os.Stat(path)
-	if err != nil {
-		return ""
-	}
-
-	// Warn if file permissions are too permissive (should be 600)
-	if info.Mode().Perm() > 0600 {
-		fmt.Fprintf(os.Stderr, "Warning: Secret file %s has permissive permissions %o, should be 600\n",
-			path, info.Mode().Perm())
-	}
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
-}
-
-// extractHostname extracts hostname from LDAP URL for TLS ServerName
-func extractHostname(ldapURL string) string {
-	// Remove protocol prefix
-	url := strings.TrimPrefix(ldapURL, "ldap://")
-	url = strings.TrimPrefix(url, "ldaps://")
-
-	// Remove port if present
-	if colonIndex := strings.Index(url, ":"); colonIndex != -1 {
-		url = url[:colonIndex]
-	}
-
-	return url
 }
 
 // NewSearcherWithDefaults creates a searcher using the auto-loaded default config
@@ -366,4 +336,18 @@ func getPasswordFromEnv() string {
 	}
 	// Fallback to direct LDAP_PASSWORD
 	return os.Getenv("LDAP_PASSWORD")
+}
+
+// extractHostname extracts hostname from LDAP URL for TLS ServerName
+func extractHostname(ldapURL string) string {
+	// Remove protocol prefix
+	url := strings.TrimPrefix(ldapURL, "ldap://")
+	url = strings.TrimPrefix(url, "ldaps://")
+
+	// Remove port if present
+	if colonIndex := strings.Index(url, ":"); colonIndex != -1 {
+		url = url[:colonIndex]
+	}
+
+	return url
 }
