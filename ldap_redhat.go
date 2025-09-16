@@ -13,7 +13,7 @@ import (
 )
 
 // Version of the go-ldap-redhat library
-const Version = "v1.1.0"
+const Version = "v1.2.0"
 
 // Config holds LDAP connection configuration
 type Config struct {
