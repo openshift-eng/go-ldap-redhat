@@ -158,7 +158,7 @@ func TestRealUserLookup(t *testing.T) {
 		t.Skip("Skipping real user test: LDAP_URL not set")
 	}
 
-	// Test with etang (known to exist)
+	// Test with jemedina (known to exist)
 	searcher, err := NewSearcherWithDefaults()
 	if err != nil {
 		t.Skip("Skipping real user test: Cannot create searcher")
@@ -168,11 +168,11 @@ func TestRealUserLookup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Test etang@redhat.com
-	identifier := Identifier{Type: IDTEmail, Value: "etang@redhat.com"}
+	// Test jemedina@redhat.com
+	identifier := Identifier{Type: IDTEmail, Value: "jemedina@redhat.com"}
 	user, err := searcher.GetUser(ctx, identifier)
 	if err != nil {
-		t.Logf("etang lookup failed: %v", err)
+		t.Logf("jemedina lookup failed: %v", err)
 		return
 	}
 
@@ -182,11 +182,11 @@ func TestRealUserLookup(t *testing.T) {
 	t.Logf("   Location: %s", user.RhatLocation)
 
 	// Validate real user data
-	if user.UID != "etang" {
-		t.Errorf("Expected UID 'etang', got '%s'", user.UID)
+	if user.UID != "jemedina" {
+		t.Errorf("Expected UID 'jemedina', got '%s'", user.UID)
 	}
-	if user.Email != "etang@redhat.com" {
-		t.Errorf("Expected email 'etang@redhat.com', got '%s'", user.Email)
+	if user.Email != "jemedina@redhat.com" {
+		t.Errorf("Expected email 'jemedina@redhat.com', got '%s'", user.Email)
 	}
 	if user.RhatUUID == "" {
 		t.Error("RhatUUID should not be empty for real user")
