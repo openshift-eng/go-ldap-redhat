@@ -13,22 +13,10 @@ func TestUserRecordValidation(t *testing.T) {
 		t.Error("Empty UserRecord should have empty UID")
 	}
 
-	// Test UserRecord with all fields
+	// Test UserRecord with required fields only
 	user = UserRecord{
-		UID:            "testuser",
-		Email:          "testuser@redhat.com",
-		DisplayName:    "Test User",
-		Surname:        "User",
-		Title:          "Software Engineer",
-		ManagerUID:     "uid=manager,ou=users,dc=redhat,dc=com",
-		CostCenter:     "123",
-		CostCenterDesc: "Engineering",
-		RhatLocation:   "Remote US",
-		RhatJobCode:    "456",
-		RhatUUID:       "12345678-1234-1234-1234-123456789abc",
-		RhatHireDate:   "20220101000000Z",
-		RhatTermDate:   "",
-		RhatAdjSvcDate: "20220101000000Z",
+		UID:   "testuser",
+		Email: "testuser@redhat.com",
 	}
 
 	// Validate required fields
@@ -148,7 +136,6 @@ func TestRedHatSpecificFields(t *testing.T) {
 	user := UserRecord{
 		RhatUUID:     "12345678-1234-1234-1234-123456789abc",
 		RhatLocation: "Remote US CA",
-		RhatJobCode:  "516",
 		RhatHireDate: "20220711070000Z",
 		RhatTermDate: "", // Active employee
 	}

@@ -52,9 +52,9 @@ func setupTestEnvironment() {
 		fmt.Println("   Set LDAP_BIND_DN for tests")
 	}
 
-	if os.Getenv("LDAP_STARTTLS") == "" {
-		os.Setenv("LDAP_STARTTLS", "true")
-		fmt.Println("   Set LDAP_STARTTLS for tests")
+	if os.Getenv("LDAP_START_TLS") == "" {
+		os.Setenv("LDAP_START_TLS", "true")
+		fmt.Println("   Set LDAP_START_TLS for tests")
 	}
 
 	// Check if we have credentials for integration tests

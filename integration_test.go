@@ -98,7 +98,7 @@ func TestLDAPConnection(t *testing.T) {
 		Username:    os.Getenv("LDAP_BIND_DN"),
 		Password:    getPasswordFromEnv(),
 		BaseDN:      os.Getenv("LDAP_BASE_DN"),
-		UseStartTLS: os.Getenv("LDAP_STARTTLS") == "true",
+		UseStartTLS: os.Getenv("LDAP_START_TLS") == "true",
 		VerifySSL:   false, // Internal Red Hat LDAP
 	}
 

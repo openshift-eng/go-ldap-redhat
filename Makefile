@@ -89,7 +89,7 @@ run-cli: cli ## Build and run CLI with example
 		LDAP_URL=ldap://apps-ldap.corp.redhat.com:389 \
 		LDAP_BIND_DN=uid=pco-deleted-users-query,ou=users,dc=redhat,dc=com \
 		LDAP_BASE_DN=dc=redhat,dc=com \
-		LDAP_STARTTLS=true \
+		LDAP_START_TLS=true \
 		./bin/ldapcheck $(USER); \
 	fi
 

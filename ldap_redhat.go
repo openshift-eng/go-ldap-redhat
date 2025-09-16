@@ -87,7 +87,7 @@ func NewSearcherFromEnv() (*Searcher, error) {
 		Username:    os.Getenv("LDAP_BIND_DN"),
 		Password:    getPasswordFromEnv(),
 		BaseDN:      os.Getenv("LDAP_BASE_DN"),
-		UseStartTLS: os.Getenv("LDAP_STARTTLS") == "true",
+		UseStartTLS: os.Getenv("LDAP_START_TLS") == "true",
 		VerifySSL:   os.Getenv("LDAP_VERIFY_SSL") != "false",
 	}
 	return NewSearcher(config)
@@ -299,8 +299,8 @@ func mergeWithSecretsAndEnv(config Config) Config {
 		config.BaseDN = baseDN
 	}
 
-	if os.Getenv("LDAP_STARTTLS") != "" {
-		config.UseStartTLS = os.Getenv("LDAP_STARTTLS") == "true"
+	if os.Getenv("LDAP_START_TLS") != "" {
+		config.UseStartTLS = os.Getenv("LDAP_START_TLS") == "true"
 	}
 
 	if os.Getenv("LDAP_VERIFY_SSL") != "" {

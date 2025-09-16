@@ -6,9 +6,13 @@ A simple, clean Go library for LDAP authentication and user lookup with Red Hat 
 
 - **Simple API**: Easy-to-use interface for LDAP operations
 - **Secure Connections**: Supports both `ldaps://` and `ldap://` with StartTLS
+- **Multi-Environment Config**: YAML configuration with local/dev/prod environments
+- **Flexible Password Loading**: Secrets folder, password files, or environment variables
 - **Red Hat Optimized**: Pre-configured for Red Hat LDAP infrastructure
 - **Type Safety**: Strongly typed user records and search identifiers
-- **Error Handling**: Comprehensive error reporting
+- **Comprehensive Testing**: 21 tests including real LDAP integration
+- **Development Automation**: Professional Makefile with 20+ commands
+- **Error Handling**: Enterprise-grade error reporting and validation
 
 ## Installation
 
@@ -181,7 +185,7 @@ export LDAP_URL="ldap://apps-ldap.corp.redhat.com:389"
 export LDAP_BIND_DN="uid=pco-deleted-users-query,ou=users,dc=redhat,dc=com"
 export LDAP_PASSWORD="your-password"
 export LDAP_BASE_DN="dc=redhat,dc=com"
-export LDAP_STARTTLS="true"
+export LDAP_START_TLS="true"
 
 # Search for a user
 ./ldapcheck johndoe@redhat.com
@@ -211,7 +215,47 @@ This library is designed for Red Hat's internal LDAP infrastructure. For issues 
 
 Apache License 2.0 - see LICENSE file for details.
 
+## Development
+
+### Building and Testing
+
+```bash
+# Install dependencies
+make install
+
+# Run all tests
+make test
+
+# Build library and CLI
+make build
+make cli
+
+# Run CLI tool
+make run-cli USER=jemedina@redhat.com
+
+# Check release readiness
+make release-check
+```
+
+### Available Make Commands
+
+Run `make help` to see all available commands including:
+- Build automation (`make build`, `make cli`)
+- Testing (`make test`, `make benchmark`, `make coverage`)
+- Code quality (`make fmt`, `make vet`, `make check`)
+- Development workflow (`make dev`, `make quick`)
+
 ## Changelog
+
+### v1.1.0
+- Add comprehensive test suite (21 tests)
+- Add LDAP_PASSWORD_FILE environment variable support
+- Add YAML password_file configuration for multi-environment
+- Add professional Makefile with development automation
+- Add enterprise-appropriate clean output (no emojis)
+- Fix deprecated io/ioutil usage
+- Improve variable naming (LDAP_START_TLS)
+- Add .gitignore and development infrastructure
 
 ### v1.0.0
 - Initial release
