@@ -1,4 +1,4 @@
-package ldap_redhat
+package ldap_redhat_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	ldap_redhat "github.com/openshift-eng/go-ldap-redhat"
 )
 
 // TestMain is the main test runner that sets up and tears down test environment
@@ -58,7 +60,7 @@ func setupTestEnvironment() {
 	}
 
 	// Check if we have credentials for integration tests
-	hasPassword := getPasswordFromEnv() != ""
+	hasPassword := ldap_redhat.GetPasswordFromEnv() != ""
 	if hasPassword {
 		fmt.Println("   LDAP credentials available - integration tests will run")
 	} else {
@@ -86,7 +88,7 @@ func TestSuiteOverview(t *testing.T) {
 		description string
 		file        string
 	}{
-		{"Core Library", "Version, constants, basic functionality", "ldap_redhat_test.go"},
+		{"Core Library", "ldap_redhat.Version, constants, basic functionality", "ldap_redhat_test.go"},
 		{"Configuration", "YAML, env vars, secrets loading", "config_test.go"},
 		{"User Validation", "UserRecord, identifiers, Red Hat fields", "user_test.go"},
 		{"Integration", "Real LDAP connections and searches", "integration_test.go"},
@@ -100,12 +102,12 @@ func TestSuiteOverview(t *testing.T) {
 	fmt.Println("\nTest Environment:")
 	fmt.Printf("   LDAP URL: %s\n", os.Getenv("LDAP_URL"))
 	fmt.Printf("   Base DN: %s\n", os.Getenv("LDAP_BASE_DN"))
-	fmt.Printf("   Has Password: %v\n", getPasswordFromEnv() != "")
-	fmt.Printf("   Environment: %s\n", getEnvironment())
+	fmt.Printf("   Has Password: %v\n", ldap_redhat.GetPasswordFromEnv() != "")
+	fmt.Printf("   Environment: %s\n", ldap_redhat.GetEnvironment())
 
 	// Library info
 	fmt.Printf("\nLibrary Info:\n")
-	fmt.Printf("   Version: %s\n", Version)
+	fmt.Printf("   ldap_redhat.Version: %s\n", ldap_redhat.Version)
 	fmt.Printf("   Module: github.com/openshift-eng/go-ldap-redhat\n")
 
 	fmt.Println("")
@@ -113,15 +115,15 @@ func TestSuiteOverview(t *testing.T) {
 
 // TestQuickHealthCheck performs a quick health check of all major components
 func TestQuickHealthCheck(t *testing.T) {
-	t.Run("VersionCheck", func(t *testing.T) {
-		if Version == "" {
-			t.Error("Version should be set")
+	t.Run("ldap_redhat.VersionCheck", func(t *testing.T) {
+		if ldap_redhat.Version == "" {
+			t.Error("ldap_redhat.Version should be set")
 		}
-		t.Logf("Version: %s", Version)
+		t.Logf("ldap_redhat.Version: %s", ldap_redhat.Version)
 	})
 
 	t.Run("ConfigurationCheck", func(t *testing.T) {
-		config := loadConfigFromAll()
+		config := ldap_redhat.LoadConfigFromAll()
 		if len(config.LdapServers) == 0 {
 			t.Log("⚠️  No LDAP servers configured")
 		} else {
@@ -141,7 +143,7 @@ func TestQuickHealthCheck(t *testing.T) {
 		}
 
 		// Quick connection test (don't search, just connect)
-		searcher, err := NewSearcherWithDefaults()
+		searcher, err := ldap_redhat.NewSearcherWithDefaults()
 		if err != nil {
 			t.Logf("⚠️  Connection failed: %v", err)
 			return
@@ -159,7 +161,7 @@ func TestRealUserLookup(t *testing.T) {
 	}
 
 	// Test with jemedina (known to exist)
-	searcher, err := NewSearcherWithDefaults()
+	searcher, err := ldap_redhat.NewSearcherWithDefaults()
 	if err != nil {
 		t.Skip("Skipping real user test: Cannot create searcher")
 	}
@@ -169,7 +171,7 @@ func TestRealUserLookup(t *testing.T) {
 	defer cancel()
 
 	// Test jemedina@redhat.com
-	identifier := Identifier{Type: IDTEmail, Value: "jemedina@redhat.com"}
+	identifier := ldap_redhat.Identifier{Type: ldap_redhat.IDTEmail, Value: "jemedina@redhat.com"}
 	user, err := searcher.GetUser(ctx, identifier)
 	if err != nil {
 		t.Logf("jemedina lookup failed: %v", err)

@@ -1,53 +1,55 @@
-package ldap_redhat
+package ldap_redhat_test
 
 import (
 	"context"
 	"os"
 	"testing"
+
+	ldap_redhat "github.com/openshift-eng/go-ldap-redhat"
 )
 
 func TestVersion(t *testing.T) {
-	if Version == "" {
-		t.Error("Version should not be empty")
+	if ldap_redhat.Version == "" {
+		t.Error("ldap_redhat.Version should not be empty")
 	}
-	if Version != "v1.2.0" {
-		t.Errorf("Expected version v1.2.0, got %s", Version)
+	if ldap_redhat.Version != "v1.2.0" {
+		t.Errorf("Expected version v1.2.0, got %s", ldap_redhat.Version)
 	}
 }
 
 func TestIdentifierConstants(t *testing.T) {
-	if IDTUID != 0 {
-		t.Errorf("IDTUID should be 0, got %d", IDTUID)
+	if ldap_redhat.IDTUID != 0 {
+		t.Errorf("ldap_redhat.IDTUID should be 0, got %d", ldap_redhat.IDTUID)
 	}
-	if IDTEmail != 1 {
-		t.Errorf("IDTEmail should be 1, got %d", IDTEmail)
+	if ldap_redhat.IDTEmail != 1 {
+		t.Errorf("ldap_redhat.IDTEmail should be 1, got %d", ldap_redhat.IDTEmail)
 	}
 }
 
 func TestNewSearcherWithEmptyConfig(t *testing.T) {
-	config := Config{}
-	searcher, err := NewSearcher(config)
+	config := ldap_redhat.Config{}
+	searcher, err := ldap_redhat.NewSearcher(config)
 	if err != nil {
 		t.Errorf("NewSearcher with empty config should not error, got: %v", err)
 	}
 	if searcher == nil {
 		t.Error("Searcher should not be nil")
 	}
-	if searcher.conn != nil {
+	if searcher.Conn != nil {
 		t.Error("Connection should be nil for empty config")
 	}
 	searcher.Close() // Should not panic
 }
 
 func TestNewSearcherWithInvalidURL(t *testing.T) {
-	config := Config{
+	config := ldap_redhat.Config{
 		LdapServers: []string{"invalid://bad-url"},
 		Username:    "test",
 		Password:    "test",
 		BaseDN:      "dc=test,dc=com",
 	}
 
-	searcher, err := NewSearcher(config)
+	searcher, err := ldap_redhat.NewSearcher(config)
 	if err == nil {
 		t.Error("Expected error for invalid LDAP URL")
 		if searcher != nil {
@@ -57,9 +59,9 @@ func TestNewSearcherWithInvalidURL(t *testing.T) {
 }
 
 func TestGetUserWithoutConnection(t *testing.T) {
-	searcher := &Searcher{config: Config{}}
+	searcher := &ldap_redhat.Searcher{Config: ldap_redhat.Config{}}
 
-	identifier := Identifier{Type: IDTUID, Value: "testuser"}
+	identifier := ldap_redhat.Identifier{Type: ldap_redhat.IDTUID, Value: "testuser"}
 	ctx := context.Background()
 
 	_, err := searcher.GetUser(ctx, identifier)
@@ -74,13 +76,13 @@ func TestGetUserWithoutConnection(t *testing.T) {
 }
 
 func TestGetUserWithInvalidIdentifierType(t *testing.T) {
-	searcher := &Searcher{
-		config: Config{},
-		conn:   nil, // Will trigger connection error first
+	searcher := &ldap_redhat.Searcher{
+		Config: ldap_redhat.Config{},
+		Conn:   nil, // Will trigger connection error first
 	}
 
 	// Test with invalid identifier type
-	identifier := Identifier{Type: 999, Value: "testuser"}
+	identifier := ldap_redhat.Identifier{Type: 999, Value: "testuser"}
 	ctx := context.Background()
 
 	_, err := searcher.GetUser(ctx, identifier)
@@ -103,9 +105,9 @@ func TestExtractHostname(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := extractHostname(test.input)
+		result := ldap_redhat.ExtractHostname(test.input)
 		if result != test.expected {
-			t.Errorf("extractHostname(%s) = %s, expected %s", test.input, result, test.expected)
+			t.Errorf("ldap_redhat.ExtractHostname(%s) = %s, expected %s", test.input, result, test.expected)
 		}
 	}
 }
@@ -124,27 +126,27 @@ func TestGetEnvironment(t *testing.T) {
 	// Test default
 	os.Unsetenv("LDAP_ENV")
 	os.Unsetenv("ENV")
-	if env := getEnvironment(); env != "local" {
+	if env := ldap_redhat.GetEnvironment(); env != "local" {
 		t.Errorf("Default environment should be 'local', got '%s'", env)
 	}
 
 	// Test LDAP_ENV priority
 	os.Setenv("LDAP_ENV", "production")
 	os.Setenv("ENV", "development")
-	if env := getEnvironment(); env != "production" {
+	if env := ldap_redhat.GetEnvironment(); env != "production" {
 		t.Errorf("LDAP_ENV should take priority, expected 'production', got '%s'", env)
 	}
 
 	// Test ENV fallback
 	os.Unsetenv("LDAP_ENV")
 	os.Setenv("ENV", "staging")
-	if env := getEnvironment(); env != "staging" {
+	if env := ldap_redhat.GetEnvironment(); env != "staging" {
 		t.Errorf("ENV fallback should work, expected 'staging', got '%s'", env)
 	}
 }
 
 func TestReadSecretFileNonExistent(t *testing.T) {
-	result := readSecretFile("/nonexistent/path/file")
+	result := ldap_redhat.ReadSecretFile("/nonexistent/path/file")
 	if result != "" {
 		t.Errorf("readSecretFile for nonexistent file should return empty string, got '%s'", result)
 	}
@@ -170,7 +172,7 @@ func TestNewSearcherFromEnv(t *testing.T) {
 	os.Setenv("LDAP_PASSWORD", "testpass")
 	os.Setenv("LDAP_BASE_DN", "dc=example,dc=com")
 
-	searcher, err := NewSearcherFromEnv()
+	searcher, err := ldap_redhat.NewSearcherFromEnv()
 	if err == nil {
 		// This will likely fail to connect, but that's expected for test
 		// We're just testing that the config is properly loaded

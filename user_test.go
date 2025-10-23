@@ -1,20 +1,22 @@
-package ldap_redhat
+package ldap_redhat_test
 
 import (
 	"strings"
 	"testing"
+
+	ldap_redhat "github.com/openshift-eng/go-ldap-redhat"
 )
 
 // TestUserRecordValidation tests UserRecord field validation
 func TestUserRecordValidation(t *testing.T) {
 	// Test empty UserRecord
-	user := UserRecord{}
+	user := ldap_redhat.UserRecord{}
 	if user.UID != "" {
 		t.Error("Empty UserRecord should have empty UID")
 	}
 
 	// Test UserRecord with required fields only
-	user = UserRecord{
+	user = ldap_redhat.UserRecord{
 		UID:   "testuser",
 		Email: "testuser@redhat.com",
 	}
@@ -34,41 +36,41 @@ func TestUserRecordValidation(t *testing.T) {
 	}
 }
 
-// TestIdentifierValidation tests Identifier validation
+// Testldap_redhat.IdentifierValidation tests ldap_redhat.Identifier validation
 func TestIdentifierValidation(t *testing.T) {
 	tests := []struct {
 		name       string
-		identifier Identifier
+		identifier ldap_redhat.Identifier
 		valid      bool
 	}{
 		{
 			name:       "Valid UID",
-			identifier: Identifier{Type: IDTUID, Value: "testuser"},
+			identifier: ldap_redhat.Identifier{Type: ldap_redhat.IDTUID, Value: "testuser"},
 			valid:      true,
 		},
 		{
 			name:       "Valid Email",
-			identifier: Identifier{Type: IDTEmail, Value: "test@redhat.com"},
+			identifier: ldap_redhat.Identifier{Type: ldap_redhat.IDTEmail, Value: "test@redhat.com"},
 			valid:      true,
 		},
 		{
 			name:       "Empty UID",
-			identifier: Identifier{Type: IDTUID, Value: ""},
+			identifier: ldap_redhat.Identifier{Type: ldap_redhat.IDTUID, Value: ""},
 			valid:      false,
 		},
 		{
 			name:       "Empty Email",
-			identifier: Identifier{Type: IDTEmail, Value: ""},
+			identifier: ldap_redhat.Identifier{Type: ldap_redhat.IDTEmail, Value: ""},
 			valid:      false,
 		},
 		{
 			name:       "Invalid Email Format",
-			identifier: Identifier{Type: IDTEmail, Value: "notanemail"},
+			identifier: ldap_redhat.Identifier{Type: ldap_redhat.IDTEmail, Value: "notanemail"},
 			valid:      false,
 		},
 		{
-			name:       "Invalid Identifier Type",
-			identifier: Identifier{Type: 999, Value: "test"},
+			name:       "Invalid ldap_redhat.Identifier Type",
+			identifier: ldap_redhat.Identifier{Type: 999, Value: "test"},
 			valid:      false,
 		},
 	}
@@ -84,17 +86,17 @@ func TestIdentifierValidation(t *testing.T) {
 	}
 }
 
-// validateIdentifier validates an identifier (helper function for testing)
-func validateIdentifier(id Identifier) bool {
+// validateldap_redhat.Identifier validates an identifier (helper function for testing)
+func validateIdentifier(id ldap_redhat.Identifier) bool {
 	if id.Value == "" {
 		return false
 	}
 
 	switch id.Type {
-	case IDTUID:
+	case ldap_redhat.IDTUID:
 		// UID should not be empty and should be reasonable length
 		return len(id.Value) > 0 && len(id.Value) < 100
-	case IDTEmail:
+	case ldap_redhat.IDTEmail:
 		// Email should contain @ and be reasonable format
 		return strings.Contains(id.Value, "@") &&
 			strings.Contains(id.Value, ".") &&
@@ -106,7 +108,7 @@ func validateIdentifier(id Identifier) bool {
 
 // TestUserRecordSerialization tests that UserRecord can be properly serialized
 func TestUserRecordSerialization(t *testing.T) {
-	user := UserRecord{
+	user := ldap_redhat.UserRecord{
 		UID:         "testuser",
 		Email:       "testuser@redhat.com",
 		DisplayName: "Test User",
@@ -133,7 +135,7 @@ func TestUserRecordSerialization(t *testing.T) {
 
 // TestRedHatSpecificFields tests Red Hat-specific LDAP attributes
 func TestRedHatSpecificFields(t *testing.T) {
-	user := UserRecord{
+	user := ldap_redhat.UserRecord{
 		RhatUUID:     "12345678-1234-1234-1234-123456789abc",
 		RhatLocation: "Remote US CA",
 		RhatHireDate: "20220711070000Z",

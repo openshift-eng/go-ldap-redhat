@@ -118,7 +118,7 @@ release-check: ## Check if ready for release
 	@echo "Checking release readiness..."
 	@echo "Version: $(shell cat VERSION)"
 	@echo "Module: $(shell head -1 go.mod)"
-	@echo "Tests: $(shell go test . 2>&1 | grep -c PASS) passing"
+	@echo "Tests: $(shell go test . -v 2>&1 | grep -c '^--- PASS') passing"
 	@echo "Dependencies: $(shell go list -m all | wc -l) modules"
 	go build .
 	go build ./cmd/ldapcheck
