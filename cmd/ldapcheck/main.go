@@ -19,22 +19,8 @@ func main() {
 	uid := os.Args[1]
 	ctx := context.Background()
 
-	// Configure LDAP connection
-	cfg := ldap_redhat.Config{
-		LdapServers: []string{os.Getenv("LDAP_URL")},
-		Username:    os.Getenv("LDAP_BIND_DN"),
-		Password:    os.Getenv("LDAP_PASSWORD"),
-		BaseDN:      os.Getenv("LDAP_BASE_DN"),
-		UseStartTLS: os.Getenv("LDAP_START_TLS") == "true",
-		VerifySSL:   false,
-	}
-
-	fmt.Printf("Connecting to LDAP: %s\n", cfg.LdapServers[0])
-	fmt.Printf("Base DN: %s\n", cfg.BaseDN)
-	fmt.Printf("Bind DN: %s\n", cfg.Username)
-
-	// Create searcher
-	s, err := ldap_redhat.NewSearcher(cfg)
+	// Create searcher using default configuration (YAML + env vars)
+	s, err := ldap_redhat.NewSearcherWithDefaults()
 	if err != nil {
 		log.Fatalf("Failed to create searcher: %v", err)
 	}

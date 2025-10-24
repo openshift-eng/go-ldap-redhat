@@ -1,9 +1,11 @@
-package ldap_redhat
+package ldap_redhat_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	ldap_redhat "github.com/openshift-eng/go-ldap-redhat"
 )
 
 func TestLoadConfigFromAll(t *testing.T) {
@@ -34,7 +36,7 @@ func TestLoadConfigFromAll(t *testing.T) {
 	os.Setenv("LDAP_BASE_DN", "dc=example,dc=com")
 	os.Setenv("LDAP_PASSWORD", "testpassword")
 
-	config := loadConfigFromAll()
+	config := ldap_redhat.LoadConfigFromAll()
 
 	if len(config.LdapServers) == 0 || config.LdapServers[0] != "ldap://test.example.com:389" {
 		t.Errorf("Expected LDAP URL from env var, got %v", config.LdapServers)
@@ -68,7 +70,7 @@ func TestGetPasswordFromEnv(t *testing.T) {
 	os.Unsetenv("LDAP_PASSWORD_FILE")
 	os.Setenv("LDAP_PASSWORD", "direct-password")
 
-	password := getPasswordFromEnv()
+	password := ldap_redhat.GetPasswordFromEnv()
 	if password != "direct-password" {
 		t.Errorf("Expected direct password, got '%s'", password)
 	}
@@ -84,7 +86,7 @@ func TestGetPasswordFromEnv(t *testing.T) {
 	os.Setenv("LDAP_PASSWORD_FILE", passwordFile)
 	os.Unsetenv("LDAP_PASSWORD")
 
-	password = getPasswordFromEnv()
+	password = ldap_redhat.GetPasswordFromEnv()
 	if password != "file-password" {
 		t.Errorf("Expected password from file, got '%s'", password)
 	}
@@ -93,7 +95,7 @@ func TestGetPasswordFromEnv(t *testing.T) {
 	os.Setenv("LDAP_PASSWORD", "direct-password")
 	os.Setenv("LDAP_PASSWORD_FILE", passwordFile)
 
-	password = getPasswordFromEnv()
+	password = ldap_redhat.GetPasswordFromEnv()
 	if password != "file-password" {
 		t.Errorf("Password file should take priority, got '%s'", password)
 	}
@@ -101,7 +103,7 @@ func TestGetPasswordFromEnv(t *testing.T) {
 
 func TestReadSecretFile(t *testing.T) {
 	// Test nonexistent file
-	result := readSecretFile("/nonexistent/file")
+	result := ldap_redhat.ReadSecretFile("/nonexistent/file")
 	if result != "" {
 		t.Errorf("Expected empty string for nonexistent file, got '%s'", result)
 	}
@@ -116,7 +118,7 @@ func TestReadSecretFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	result = readSecretFile(testFile)
+	result = ldap_redhat.ReadSecretFile(testFile)
 	expected := "secret-content" // Should be trimmed
 	if result != expected {
 		t.Errorf("Expected '%s', got '%s'", expected, result)
@@ -125,20 +127,20 @@ func TestReadSecretFile(t *testing.T) {
 
 func TestNewSearcherWithDefaults(t *testing.T) {
 	// Save original config
-	originalConfig := DefaultConfig
+	originalConfig := ldap_redhat.DefaultConfig
 	defer func() {
-		DefaultConfig = originalConfig
+		ldap_redhat.DefaultConfig = originalConfig
 	}()
 
 	// Test with missing password
-	DefaultConfig = Config{
+	ldap_redhat.DefaultConfig = ldap_redhat.Config{
 		LdapServers: []string{"ldap://test.example.com:389"},
 		Username:    "test",
 		BaseDN:      "dc=test,dc=com",
 		// Password missing
 	}
 
-	_, err := NewSearcherWithDefaults()
+	_, err := ldap_redhat.NewSearcherWithDefaults()
 	if err == nil {
 		t.Error("Expected error when password is missing")
 	}
@@ -149,14 +151,14 @@ func TestNewSearcherWithDefaults(t *testing.T) {
 	}
 
 	// Test with missing URL
-	DefaultConfig = Config{
+	ldap_redhat.DefaultConfig = ldap_redhat.Config{
 		Password: "test-password",
 		Username: "test",
 		BaseDN:   "dc=test,dc=com",
 		// LdapServers missing
 	}
 
-	_, err = NewSearcherWithDefaults()
+	_, err = ldap_redhat.NewSearcherWithDefaults()
 	if err == nil {
 		t.Error("Expected error when LDAP URL is missing")
 	}

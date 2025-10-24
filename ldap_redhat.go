@@ -44,12 +44,12 @@ type EnvConfig struct {
 var DefaultConfig Config
 
 func init() {
-	DefaultConfig = loadConfigFromAll()
+	DefaultConfig = LoadConfigFromAll()
 }
 
 type Searcher struct {
-	config Config
-	conn   *ldap.Conn
+	Config Config
+	Conn   *ldap.Conn
 }
 
 type UserRecord struct {
@@ -85,7 +85,7 @@ func NewSearcherFromEnv() (*Searcher, error) {
 	config := Config{
 		LdapServers: []string{os.Getenv("LDAP_URL")},
 		Username:    os.Getenv("LDAP_BIND_DN"),
-		Password:    getPasswordFromEnv(),
+		Password:    GetPasswordFromEnv(),
 		BaseDN:      os.Getenv("LDAP_BASE_DN"),
 		UseStartTLS: os.Getenv("LDAP_START_TLS") == "true",
 		VerifySSL:   os.Getenv("LDAP_VERIFY_SSL") != "false",
@@ -95,7 +95,7 @@ func NewSearcherFromEnv() (*Searcher, error) {
 
 // NewSearcher creates a searcher with the given config
 func NewSearcher(config Config) (*Searcher, error) {
-	searcher := &Searcher{config: config}
+	searcher := &Searcher{Config: config}
 	if len(config.LdapServers) == 0 {
 		return searcher, nil
 	}
@@ -107,7 +107,7 @@ func NewSearcher(config Config) (*Searcher, error) {
 	if config.UseStartTLS {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: !config.VerifySSL,
-			ServerName:         extractHostname(ldapURL),
+			ServerName:         ExtractHostname(ldapURL),
 		}
 		err = conn.StartTLS(tlsConfig)
 		if err != nil {
@@ -122,19 +122,19 @@ func NewSearcher(config Config) (*Searcher, error) {
 			return nil, fmt.Errorf("failed to bind to LDAP: %w", err)
 		}
 	}
-	searcher.conn = conn
+	searcher.Conn = conn
 	return searcher, nil
 }
 
 func (s *Searcher) Close() error {
-	if s.conn != nil {
-		s.conn.Close()
+	if s.Conn != nil {
+		s.Conn.Close()
 	}
 	return nil
 }
 
 func (s *Searcher) GetUser(ctx context.Context, id Identifier) (UserRecord, error) {
-	if s.conn == nil {
+	if s.Conn == nil {
 		return UserRecord{}, fmt.Errorf("LDAP connection not established")
 	}
 	var filter string
@@ -155,7 +155,7 @@ func (s *Searcher) GetUser(ctx context.Context, id Identifier) (UserRecord, erro
 		[]string{"uid", "mail", "cn", "sn", "title", "manager", "rhatCostCenter", "rhatLocation", "rhatJobCode", "rhatUUID", "rhatHireDate", "rhatTermDate"},
 		nil,
 	)
-	result, err := s.conn.Search(searchRequest)
+	result, err := s.Conn.Search(searchRequest)
 	if err != nil {
 		return UserRecord{}, fmt.Errorf("LDAP search failed: %w", err)
 	}
@@ -180,8 +180,8 @@ func (s *Searcher) GetUser(ctx context.Context, id Identifier) (UserRecord, erro
 	return user, nil
 }
 
-// loadConfigFromAll loads configuration: YAML → env vars → defaults
-func loadConfigFromAll() Config {
+// LoadConfigFromAll loads configuration: YAML → env vars → defaults
+func LoadConfigFromAll() Config {
 	config := Config{}
 
 	// 1. Start with YAML config
@@ -211,7 +211,7 @@ func loadConfigFromAll() Config {
 	// Password: YAML password_file → LDAP_PASSWORD_FILE → LDAP_PASSWORD → error
 	if config.Password == "" {
 		if passwordFile := os.Getenv("LDAP_PASSWORD_FILE"); passwordFile != "" {
-			if password := readSecretFile(passwordFile); password != "" {
+			if password := ReadSecretFile(passwordFile); password != "" {
 				config.Password = password
 			}
 		}
@@ -236,7 +236,7 @@ func loadConfigFromAll() Config {
 
 // loadYAMLConfig loads configuration from YAML file
 func loadYAMLConfig() *Config {
-	env := getEnvironment()
+	env := GetEnvironment()
 
 	// Try multiple config file locations
 	configPaths := []string{
@@ -287,7 +287,7 @@ func tryLoadYAMLFile(configPath, env string) *Config {
 			homeDir, _ := os.UserHomeDir()
 			passwordPath = filepath.Join(homeDir, passwordPath[2:])
 		}
-		if password := readSecretFile(passwordPath); password != "" {
+		if password := ReadSecretFile(passwordPath); password != "" {
 			config.Password = password
 		}
 	}
@@ -296,7 +296,7 @@ func tryLoadYAMLFile(configPath, env string) *Config {
 }
 
 // getEnvironment returns the current environment (local, dev, prod)
-func getEnvironment() string {
+func GetEnvironment() string {
 	if env := os.Getenv("LDAP_ENV"); env != "" {
 		return env
 	}
@@ -306,8 +306,8 @@ func getEnvironment() string {
 	return "local" // default
 }
 
-// readSecretFile safely reads a secret file and returns its contents
-func readSecretFile(path string) string {
+// ReadSecretFile safely reads a secret file and returns its contents
+func ReadSecretFile(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
@@ -326,11 +326,11 @@ func NewSearcherWithDefaults() (*Searcher, error) {
 	return NewSearcher(DefaultConfig)
 }
 
-// getPasswordFromEnv loads password from LDAP_PASSWORD_FILE or LDAP_PASSWORD
-func getPasswordFromEnv() string {
+// GetPasswordFromEnv loads password from LDAP_PASSWORD_FILE or LDAP_PASSWORD
+func GetPasswordFromEnv() string {
 	// Try LDAP_PASSWORD_FILE first
 	if passwordFile := os.Getenv("LDAP_PASSWORD_FILE"); passwordFile != "" {
-		if password := readSecretFile(passwordFile); password != "" {
+		if password := ReadSecretFile(passwordFile); password != "" {
 			return password
 		}
 	}
@@ -339,7 +339,7 @@ func getPasswordFromEnv() string {
 }
 
 // extractHostname extracts hostname from LDAP URL for TLS ServerName
-func extractHostname(ldapURL string) string {
+func ExtractHostname(ldapURL string) string {
 	// Remove protocol prefix
 	url := strings.TrimPrefix(ldapURL, "ldap://")
 	url = strings.TrimPrefix(url, "ldaps://")
