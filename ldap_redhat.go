@@ -17,13 +17,14 @@ const Version = "v1.2.0"
 
 // Config holds LDAP connection configuration
 type Config struct {
-	LdapServers []string
-	Port        int
-	Username    string
-	Password    string
-	BaseDN      string
-	UseStartTLS bool
-	VerifySSL   bool
+	LdapServers   []string
+	Port          int
+	Username      string
+	Password      string
+	BaseDN        string
+	UseStartTLS   bool
+	VerifySSL     bool
+	TLSServerName string // Optional: Override ServerName for TLS verification (useful when connecting via IP)
 }
 
 // YAMLConfig represents the YAML configuration structure
@@ -100,14 +101,32 @@ func NewSearcher(config Config) (*Searcher, error) {
 		return searcher, nil
 	}
 	ldapURL := config.LdapServers[0]
-	conn, err := ldap.DialURL(ldapURL)
+	
+	// For ldaps:// URLs, use DialURL with custom TLS config if TLSServerName is set
+	var conn *ldap.Conn
+	var err error
+	if strings.HasPrefix(ldapURL, "ldaps://") && config.TLSServerName != "" {
+		serverName := config.TLSServerName
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: !config.VerifySSL,
+			ServerName:         serverName,
+		}
+		conn, err = ldap.DialURL(ldapURL, ldap.DialWithTLSConfig(tlsConfig))
+	} else {
+		conn, err = ldap.DialURL(ldapURL)
+	}
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to LDAP server %s: %w", ldapURL, err)
 	}
 	if config.UseStartTLS {
+		serverName := config.TLSServerName
+		if serverName == "" {
+			serverName = ExtractHostname(ldapURL)
+		}
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: !config.VerifySSL,
-			ServerName:         ExtractHostname(ldapURL),
+			ServerName:         serverName,
 		}
 		err = conn.StartTLS(tlsConfig)
 		if err != nil {
