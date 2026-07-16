@@ -13,7 +13,7 @@ import (
 )
 
 // Version of the go-ldap-redhat library
-const Version = "v1.2.0"
+const Version = "v1.3.0"
 
 // Config holds LDAP connection configuration
 type Config struct {
@@ -68,6 +68,45 @@ type UserRecord struct {
 	RhatHireDate   string
 	RhatTermDate   string
 	RhatAdjSvcDate string
+	Country        string // co — ISO 3166 country code (e.g. "US", "DEU")
+	Department     string // ou — organizational unit / department
+}
+
+// userAttributes is the canonical list of LDAP attributes fetched for user lookups.
+var userAttributes = []string{
+	"uid", "mail", "cn", "sn", "title", "manager",
+	"rhatCostCenter", "rhatCostCenterDesc", "rhatLocation",
+	"rhatJobCode", "rhatUUID", "rhatHireDate", "rhatTermDate", "rhatAdjSvcDate",
+	"co", "ou",
+}
+
+// entryToUserRecord converts an LDAP entry to a UserRecord.
+func entryToUserRecord(entry *ldap.Entry) UserRecord {
+	return UserRecord{
+		UID:            entry.GetAttributeValue("uid"),
+		Email:          entry.GetAttributeValue("mail"),
+		DisplayName:    entry.GetAttributeValue("cn"),
+		Surname:        entry.GetAttributeValue("sn"),
+		Title:          entry.GetAttributeValue("title"),
+		ManagerUID:     entry.GetAttributeValue("manager"),
+		CostCenter:     entry.GetAttributeValue("rhatCostCenter"),
+		CostCenterDesc: entry.GetAttributeValue("rhatCostCenterDesc"),
+		RhatLocation:   entry.GetAttributeValue("rhatLocation"),
+		RhatJobCode:    entry.GetAttributeValue("rhatJobCode"),
+		RhatUUID:       entry.GetAttributeValue("rhatUUID"),
+		RhatHireDate:   entry.GetAttributeValue("rhatHireDate"),
+		RhatTermDate:   entry.GetAttributeValue("rhatTermDate"),
+		RhatAdjSvcDate: entry.GetAttributeValue("rhatAdjSvcDate"),
+		Country:        entry.GetAttributeValue("co"),
+		Department:     entry.GetAttributeValue("ou"),
+	}
+}
+
+// ReportSearchOptions configures FindDirectReports behavior.
+type ReportSearchOptions struct {
+	ExcludeCountries []string // ISO country codes to exclude (e.g. Works Council: "esp","fra","deu")
+	Recursive        bool     // walk subtree recursively (default: false = direct reports only)
+	MaxDepth         int      // max recursion depth (0 = unlimited, only used if Recursive is true)
 }
 
 type Identifier struct {
@@ -165,38 +204,159 @@ func (s *Searcher) GetUser(ctx context.Context, id Identifier) (UserRecord, erro
 	default:
 		return UserRecord{}, fmt.Errorf("unknown identifier type: %d", id.Type)
 	}
-	searchRequest := ldap.NewSearchRequest(
-		"ou=users,dc=redhat,dc=com",
-		ldap.ScopeWholeSubtree,
-		ldap.NeverDerefAliases,
-		0, 0, false,
-		filter,
-		[]string{"uid", "mail", "cn", "sn", "title", "manager", "rhatCostCenter", "rhatLocation", "rhatJobCode", "rhatUUID", "rhatHireDate", "rhatTermDate"},
-		nil,
-	)
-	result, err := s.Conn.Search(searchRequest)
+	baseDN := s.Config.BaseDN
+	if baseDN == "" {
+		baseDN = "ou=users,dc=redhat,dc=com"
+	}
+	result, err := s.Conn.Search(ldap.NewSearchRequest(
+		baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
+		0, 0, false, filter, userAttributes, nil,
+	))
 	if err != nil {
 		return UserRecord{}, fmt.Errorf("LDAP search failed: %w", err)
 	}
 	if len(result.Entries) == 0 {
 		return UserRecord{}, fmt.Errorf("user not found in LDAP directory: %s", id.Value)
 	}
-	entry := result.Entries[0]
-	user := UserRecord{
-		UID:          entry.GetAttributeValue("uid"),
-		Email:        entry.GetAttributeValue("mail"),
-		DisplayName:  entry.GetAttributeValue("cn"),
-		Surname:      entry.GetAttributeValue("sn"),
-		Title:        entry.GetAttributeValue("title"),
-		ManagerUID:   entry.GetAttributeValue("manager"),
-		CostCenter:   entry.GetAttributeValue("rhatCostCenter"),
-		RhatLocation: entry.GetAttributeValue("rhatLocation"),
-		RhatJobCode:  entry.GetAttributeValue("rhatJobCode"),
-		RhatUUID:     entry.GetAttributeValue("rhatUUID"),
-		RhatHireDate: entry.GetAttributeValue("rhatHireDate"),
-		RhatTermDate: entry.GetAttributeValue("rhatTermDate"),
+	return entryToUserRecord(result.Entries[0]), nil
+}
+
+// GetUsers performs a batch lookup of multiple identifiers in a single call.
+// Returns results in the same order as the input; missing users have empty UID.
+func (s *Searcher) GetUsers(ctx context.Context, ids []Identifier) ([]UserRecord, error) {
+	if len(ids) == 0 {
+		return nil, nil
 	}
-	return user, nil
+	if s.Conn == nil {
+		return nil, fmt.Errorf("LDAP connection not established")
+	}
+
+	var parts []string
+	for _, id := range ids {
+		switch id.Type {
+		case IDTUID:
+			parts = append(parts, fmt.Sprintf("(uid=%s)", ldap.EscapeFilter(id.Value)))
+		case IDTEmail:
+			parts = append(parts, fmt.Sprintf("(mail=%s)", ldap.EscapeFilter(id.Value)))
+		default:
+			return nil, fmt.Errorf("unknown identifier type: %d", id.Type)
+		}
+	}
+
+	filter := fmt.Sprintf("(|%s)", strings.Join(parts, ""))
+	baseDN := s.Config.BaseDN
+	if baseDN == "" {
+		baseDN = "ou=users,dc=redhat,dc=com"
+	}
+	result, err := s.Conn.Search(ldap.NewSearchRequest(
+		baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
+		0, 0, false, filter, userAttributes, nil,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("LDAP batch search failed: %w", err)
+	}
+
+	byUID := map[string]UserRecord{}
+	byEmail := map[string]UserRecord{}
+	for _, entry := range result.Entries {
+		rec := entryToUserRecord(entry)
+		byUID[rec.UID] = rec
+		if rec.Email != "" {
+			byEmail[strings.ToLower(rec.Email)] = rec
+		}
+	}
+
+	out := make([]UserRecord, len(ids))
+	for i, id := range ids {
+		switch id.Type {
+		case IDTUID:
+			out[i] = byUID[id.Value]
+		case IDTEmail:
+			out[i] = byEmail[strings.ToLower(id.Value)]
+		}
+	}
+	return out, nil
+}
+
+// FindDirectReports returns all users whose LDAP manager attribute points to managerUID.
+// Use opts to exclude Works Council countries or enable recursive subtree traversal.
+func (s *Searcher) FindDirectReports(ctx context.Context, managerUID string, opts ...ReportSearchOptions) ([]UserRecord, error) {
+	if s.Conn == nil {
+		return nil, fmt.Errorf("LDAP connection not established")
+	}
+
+	var opt ReportSearchOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	baseDN := s.Config.BaseDN
+	if baseDN == "" {
+		baseDN = "ou=users,dc=redhat,dc=com"
+	}
+
+	reports, err := s.findReportsForUID(ctx, managerUID, baseDN, opt.ExcludeCountries)
+	if err != nil {
+		return nil, err
+	}
+
+	if !opt.Recursive {
+		return reports, nil
+	}
+
+	return s.walkReports(ctx, reports, baseDN, opt, 1)
+}
+
+func (s *Searcher) findReportsForUID(ctx context.Context, managerUID, baseDN string, excludeCountries []string) ([]UserRecord, error) {
+	managerDN := fmt.Sprintf("uid=%s,ou=users,dc=redhat,dc=com", ldap.EscapeFilter(managerUID))
+
+	var wcFilter string
+	for _, cc := range excludeCountries {
+		wcFilter += fmt.Sprintf("(!(co=%s))", strings.TrimSpace(cc))
+	}
+
+	filter := fmt.Sprintf("(&(manager=%s)%s)", managerDN, wcFilter)
+
+	result, err := s.Conn.Search(ldap.NewSearchRequest(
+		baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
+		0, 0, false, filter, userAttributes, nil,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("LDAP direct reports search failed for %s: %w", managerUID, err)
+	}
+
+	var records []UserRecord
+	for _, entry := range result.Entries {
+		records = append(records, entryToUserRecord(entry))
+	}
+	return records, nil
+}
+
+func (s *Searcher) walkReports(ctx context.Context, current []UserRecord, baseDN string, opt ReportSearchOptions, depth int) ([]UserRecord, error) {
+	if opt.MaxDepth > 0 && depth >= opt.MaxDepth {
+		return current, nil
+	}
+
+	var all []UserRecord
+	all = append(all, current...)
+
+	for _, u := range current {
+		if u.UID == "" {
+			continue
+		}
+		children, err := s.findReportsForUID(ctx, u.UID, baseDN, opt.ExcludeCountries)
+		if err != nil {
+			continue
+		}
+		if len(children) > 0 {
+			walked, err := s.walkReports(ctx, children, baseDN, opt, depth+1)
+			if err != nil {
+				continue
+			}
+			all = append(all, walked...)
+		}
+	}
+	return all, nil
 }
 
 // LoadConfigFromAll loads configuration: YAML → env vars → defaults

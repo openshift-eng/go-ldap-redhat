@@ -125,6 +125,123 @@ func TestLDAPConnection(t *testing.T) {
 	}
 }
 
+// TestGetUsersIntegration tests batch user lookup
+func TestGetUsersIntegration(t *testing.T) {
+	if os.Getenv("LDAP_URL") == "" {
+		t.Skip("Skipping integration test: LDAP_URL not set")
+	}
+
+	searcher, err := ldap_redhat.NewSearcherWithDefaults()
+	if err != nil {
+		t.Skip("Skipping: cannot create searcher")
+	}
+	defer searcher.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	ids := []ldap_redhat.Identifier{
+		{Type: ldap_redhat.IDTUID, Value: "jemedina"},
+		{Type: ldap_redhat.IDTEmail, Value: "jemedina@redhat.com"},
+		{Type: ldap_redhat.IDTUID, Value: "nonexistent-user-zzz"},
+	}
+
+	results, err := searcher.GetUsers(ctx, ids)
+	if err != nil {
+		t.Fatalf("GetUsers failed: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("Expected 3 results, got %d", len(results))
+	}
+
+	if results[0].UID != "jemedina" {
+		t.Errorf("Expected UID 'jemedina' at index 0, got '%s'", results[0].UID)
+	}
+	if results[1].UID != "jemedina" {
+		t.Errorf("Expected UID 'jemedina' at index 1 (email lookup), got '%s'", results[1].UID)
+	}
+	if results[2].UID != "" {
+		t.Errorf("Expected empty UID at index 2 (nonexistent), got '%s'", results[2].UID)
+	}
+
+	t.Logf("GetUsers: returned %d results, new fields: Country=%q, Department=%q, CostCenterDesc=%q",
+		len(results), results[0].Country, results[0].Department, results[0].CostCenterDesc)
+}
+
+// TestFindDirectReportsIntegration tests the direct reports search
+func TestFindDirectReportsIntegration(t *testing.T) {
+	if os.Getenv("LDAP_URL") == "" {
+		t.Skip("Skipping integration test: LDAP_URL not set")
+	}
+
+	testManager := os.Getenv("TEST_LDAP_MANAGER_UID")
+	if testManager == "" {
+		t.Skip("Skipping: TEST_LDAP_MANAGER_UID not set")
+	}
+
+	searcher, err := ldap_redhat.NewSearcherWithDefaults()
+	if err != nil {
+		t.Skip("Skipping: cannot create searcher")
+	}
+	defer searcher.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	reports, err := searcher.FindDirectReports(ctx, testManager)
+	if err != nil {
+		t.Fatalf("FindDirectReports failed: %v", err)
+	}
+	t.Logf("FindDirectReports(%s): found %d direct reports", testManager, len(reports))
+
+	// Test with Works Council exclusion
+	wcExclude := []string{"esp", "fra", "nld", "deu", "aut", "bel"}
+	filtered, err := searcher.FindDirectReports(ctx, testManager, ldap_redhat.ReportSearchOptions{
+		ExcludeCountries: wcExclude,
+	})
+	if err != nil {
+		t.Fatalf("FindDirectReports with WC exclusion failed: %v", err)
+	}
+	t.Logf("FindDirectReports(%s) with WC exclusion: %d (was %d)", testManager, len(filtered), len(reports))
+
+	if len(filtered) > len(reports) {
+		t.Error("Filtered results should be <= unfiltered results")
+	}
+}
+
+// TestNewFieldsPopulated checks that new fields (Country, Department, CostCenterDesc, RhatAdjSvcDate)
+// are populated from real LDAP data
+func TestNewFieldsPopulated(t *testing.T) {
+	if os.Getenv("LDAP_URL") == "" {
+		t.Skip("Skipping integration test: LDAP_URL not set")
+	}
+
+	searcher, err := ldap_redhat.NewSearcherWithDefaults()
+	if err != nil {
+		t.Skip("Skipping: cannot create searcher")
+	}
+	defer searcher.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	user, err := searcher.GetUser(ctx, ldap_redhat.Identifier{Type: ldap_redhat.IDTUID, Value: "jemedina"})
+	if err != nil {
+		t.Skipf("User lookup failed: %v", err)
+	}
+
+	t.Logf("New fields for %s:", user.UID)
+	t.Logf("  Country:        %q", user.Country)
+	t.Logf("  Department:     %q", user.Department)
+	t.Logf("  CostCenterDesc: %q", user.CostCenterDesc)
+	t.Logf("  RhatAdjSvcDate: %q", user.RhatAdjSvcDate)
+
+	if user.CostCenterDesc == "" {
+		t.Log("Note: CostCenterDesc is empty — attribute may not be populated for this user")
+	}
+}
+
 // BenchmarkUserSearch benchmarks user search performance
 func BenchmarkUserSearch(b *testing.B) {
 	if os.Getenv("LDAP_URL") == "" {

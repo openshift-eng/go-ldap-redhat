@@ -136,30 +136,46 @@ func TestUserRecordSerialization(t *testing.T) {
 // TestRedHatSpecificFields tests Red Hat-specific LDAP attributes
 func TestRedHatSpecificFields(t *testing.T) {
 	user := ldap_redhat.UserRecord{
-		RhatUUID:     "12345678-1234-1234-1234-123456789abc",
-		RhatLocation: "Remote US CA",
-		RhatHireDate: "20220711070000Z",
-		RhatTermDate: "", // Active employee
+		RhatUUID:       "12345678-1234-1234-1234-123456789abc",
+		RhatLocation:   "Remote US CA",
+		RhatHireDate:   "20220711070000Z",
+		RhatTermDate:   "",
+		RhatAdjSvcDate: "20200101000000Z",
+		Country:        "US",
+		Department:     "AI Enablement",
+		CostCenterDesc: "Platform Engineering",
 	}
 
-	// Test UUID format (basic check)
 	if !strings.Contains(user.RhatUUID, "-") {
 		t.Error("RhatUUID should contain hyphens")
 	}
 
-	// Test hire date format (LDAP timestamp)
 	if user.RhatHireDate != "" && !strings.HasSuffix(user.RhatHireDate, "Z") {
 		t.Error("RhatHireDate should end with Z (Zulu time)")
 	}
 
-	// Test active vs terminated employee
 	isActive := user.RhatTermDate == ""
 	if !isActive {
 		t.Error("Test user should be active (no term date)")
 	}
 
-	// Test location format
 	if user.RhatLocation != "" && len(user.RhatLocation) < 2 {
 		t.Error("RhatLocation should be meaningful if set")
+	}
+
+	if user.RhatAdjSvcDate == "" {
+		t.Error("RhatAdjSvcDate should be set")
+	}
+
+	if user.Country != "US" {
+		t.Errorf("Country should be 'US', got '%s'", user.Country)
+	}
+
+	if user.Department != "AI Enablement" {
+		t.Errorf("Department should be 'AI Enablement', got '%s'", user.Department)
+	}
+
+	if user.CostCenterDesc != "Platform Engineering" {
+		t.Errorf("CostCenterDesc should be 'Platform Engineering', got '%s'", user.CostCenterDesc)
 	}
 }
