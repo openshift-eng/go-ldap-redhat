@@ -12,8 +12,8 @@ func TestVersion(t *testing.T) {
 	if ldap_redhat.Version == "" {
 		t.Error("ldap_redhat.Version should not be empty")
 	}
-	if ldap_redhat.Version != "v1.2.0" {
-		t.Errorf("Expected version v1.2.0, got %s", ldap_redhat.Version)
+	if ldap_redhat.Version != "v1.3.0" {
+		t.Errorf("Expected version v1.3.0, got %s", ldap_redhat.Version)
 	}
 }
 
@@ -149,6 +149,77 @@ func TestReadSecretFileNonExistent(t *testing.T) {
 	result := ldap_redhat.ReadSecretFile("/nonexistent/path/file")
 	if result != "" {
 		t.Errorf("readSecretFile for nonexistent file should return empty string, got '%s'", result)
+	}
+}
+
+func TestGetUsersWithoutConnection(t *testing.T) {
+	searcher := &ldap_redhat.Searcher{Config: ldap_redhat.Config{}}
+	ctx := context.Background()
+
+	_, err := searcher.GetUsers(ctx, []ldap_redhat.Identifier{
+		{Type: ldap_redhat.IDTUID, Value: "test"},
+	})
+	if err == nil {
+		t.Error("Expected error when no LDAP connection established")
+	}
+}
+
+func TestGetUsersEmptyList(t *testing.T) {
+	searcher := &ldap_redhat.Searcher{Config: ldap_redhat.Config{}}
+	ctx := context.Background()
+
+	result, err := searcher.GetUsers(ctx, nil)
+	if err != nil {
+		t.Errorf("GetUsers with nil list should not error, got: %v", err)
+	}
+	if result != nil {
+		t.Error("GetUsers with nil list should return nil")
+	}
+}
+
+func TestFindDirectReportsWithoutConnection(t *testing.T) {
+	searcher := &ldap_redhat.Searcher{Config: ldap_redhat.Config{}}
+	ctx := context.Background()
+
+	_, err := searcher.FindDirectReports(ctx, "testuser")
+	if err == nil {
+		t.Error("Expected error when no LDAP connection established")
+	}
+}
+
+func TestReportSearchOptionsDefaults(t *testing.T) {
+	opts := ldap_redhat.ReportSearchOptions{}
+	if opts.Recursive {
+		t.Error("Recursive should default to false")
+	}
+	if opts.MaxDepth != 0 {
+		t.Error("MaxDepth should default to 0")
+	}
+	if opts.ExcludeCountries != nil {
+		t.Error("ExcludeCountries should default to nil")
+	}
+}
+
+func TestUserRecordNewFields(t *testing.T) {
+	user := ldap_redhat.UserRecord{
+		UID:            "testuser",
+		Country:        "US",
+		Department:     "Engineering",
+		CostCenterDesc: "AI Platform",
+		RhatAdjSvcDate: "20200101000000Z",
+	}
+
+	if user.Country != "US" {
+		t.Errorf("Country should be 'US', got '%s'", user.Country)
+	}
+	if user.Department != "Engineering" {
+		t.Errorf("Department should be 'Engineering', got '%s'", user.Department)
+	}
+	if user.CostCenterDesc != "AI Platform" {
+		t.Errorf("CostCenterDesc should be 'AI Platform', got '%s'", user.CostCenterDesc)
+	}
+	if user.RhatAdjSvcDate != "20200101000000Z" {
+		t.Errorf("RhatAdjSvcDate should be set, got '%s'", user.RhatAdjSvcDate)
 	}
 }
 
